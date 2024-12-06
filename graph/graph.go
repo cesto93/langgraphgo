@@ -55,9 +55,14 @@ type MessageGraph struct {
 
 // NewMessageGraph creates a new instance of MessageGraph.
 func NewMessageGraph() *MessageGraph {
-	return &MessageGraph{
+	g := &MessageGraph{
 		nodes: make(map[string]Node),
 	}
+
+	g.AddNode(END, func(ctx context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
+		return state, nil
+	})
+	return g
 }
 
 // AddNode adds a new node to the message graph with the given name and function.
