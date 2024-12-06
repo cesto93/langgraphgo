@@ -18,7 +18,7 @@ func ExampleMessageGraph() {
 		panic(err)
 	}
 
-	g := graph.NewMessageGraph()
+	g := graph.NewMessageGraph[[]llms.MessageContent]()
 
 	g.AddNode("oracle", func(ctx context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
 		r, err := model.GenerateContent(ctx, state, llms.WithTemperature(0.0))
@@ -60,15 +60,15 @@ func TestMessageGraph(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name           string
-		buildGraph     func() *graph.MessageGraph
+		buildGraph     func() *graph.MessageGraph[[]llms.MessageContent]
 		inputMessages  []llms.MessageContent
 		expectedOutput []llms.MessageContent
 		expectedError  error
 	}{
 		{
 			name: "Simple graph",
-			buildGraph: func() *graph.MessageGraph {
-				g := graph.NewMessageGraph()
+			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
+				g := graph.NewMessageGraph[[]llms.MessageContent]()
 				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
 					return append(state, llms.TextParts(schema.ChatMessageTypeAI, "Node 1")), nil
 				})
@@ -90,8 +90,8 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "Entry point not set",
-			buildGraph: func() *graph.MessageGraph {
-				g := graph.NewMessageGraph()
+			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
+				g := graph.NewMessageGraph[[]llms.MessageContent]()
 				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
 					return state, nil
 				})
@@ -101,8 +101,8 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "Node not found",
-			buildGraph: func() *graph.MessageGraph {
-				g := graph.NewMessageGraph()
+			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
+				g := graph.NewMessageGraph[[]llms.MessageContent]()
 				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
 					return state, nil
 				})
@@ -114,8 +114,8 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "No outgoing edge",
-			buildGraph: func() *graph.MessageGraph {
-				g := graph.NewMessageGraph()
+			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
+				g := graph.NewMessageGraph[[]llms.MessageContent]()
 				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
 					return state, nil
 				})
@@ -126,8 +126,8 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "Error in node function",
-			buildGraph: func() *graph.MessageGraph {
-				g := graph.NewMessageGraph()
+			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
+				g := graph.NewMessageGraph[[]llms.MessageContent]()
 				g.AddNode("node1", func(_ context.Context, _ []llms.MessageContent) ([]llms.MessageContent, error) {
 					return nil, errors.New("node error")
 				})

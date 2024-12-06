@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/tmc/langchaingo/llms"
 )
 
 // END is a special constant used to represent the end node in the graph.
@@ -23,13 +21,12 @@ var (
 )
 
 // Node represents a node in the message graph.
-type Node struct {
+type Node[T any] struct {
 	// Name is the unique identifier for the node.
 	Name string
 
 	// Function is the function associated with the node.
-	// It takes a context and a slice of MessageContent as input and returns a slice of MessageContent and an error.
-	Function func(ctx context.Context, state []llms.MessageContent) ([]llms.MessageContent, error)
+	Function func(ctx context.Context, state T) (T, error)
 }
 
 // Edge represents an edge in the message graph.
@@ -42,9 +39,9 @@ type Edge struct {
 }
 
 // MessageGraph represents a message graph.
-type MessageGraph struct {
+type MessageGraph[T any] struct {
 	// nodes is a map of node names to their corresponding Node objects.
-	nodes map[string]Node
+	nodes map[string]Node[T]
 
 	// edges is a slice of Edge objects representing the connections between nodes.
 	edges []Edge
@@ -54,27 +51,27 @@ type MessageGraph struct {
 }
 
 // NewMessageGraph creates a new instance of MessageGraph.
-func NewMessageGraph() *MessageGraph {
-	g := &MessageGraph{
-		nodes: make(map[string]Node),
+func NewMessageGraph[T any]() *MessageGraph[T] {
+	g := &MessageGraph[T]{
+		nodes: make(map[string]Node[T]),
 	}
 
-	g.AddNode(END, func(ctx context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
+	g.AddNode(END, func(ctx context.Context, state T) (T, error) {
 		return state, nil
 	})
 	return g
 }
 
 // AddNode adds a new node to the message graph with the given name and function.
-func (g *MessageGraph) AddNode(name string, fn func(ctx context.Context, state []llms.MessageContent) ([]llms.MessageContent, error)) {
-	g.nodes[name] = Node{
+func (g *MessageGraph[T]) AddNode(name string, fn func(ctx context.Context, state T) (T, error)) {
+	g.nodes[name] = Node[T]{
 		Name:     name,
 		Function: fn,
 	}
 }
 
 // AddEdge adds a new edge to the message graph between the "from" and "to" nodes.
-func (g *MessageGraph) AddEdge(from, to string) {
+func (g *MessageGraph[T]) AddEdge(from, to string) {
 	g.edges = append(g.edges, Edge{
 		From: from,
 		To:   to,
@@ -82,34 +79,33 @@ func (g *MessageGraph) AddEdge(from, to string) {
 }
 
 // SetEntryPoint sets the entry point node name for the message graph.
-func (g *MessageGraph) SetEntryPoint(name string) {
+func (g *MessageGraph[T]) SetEntryPoint(name string) {
 	g.entryPoint = name
 }
 
 // Runnable represents a compiled message graph that can be invoked.
-type Runnable struct {
+type Runnable[T any] struct {
 	// graph is the underlying MessageGraph object.
-	graph *MessageGraph
+	graph *MessageGraph[T]
 }
 
 // Compile compiles the message graph and returns a Runnable instance.
 // It returns an error if the entry point is not set.
-func (g *MessageGraph) Compile() (*Runnable, error) {
+func (g *MessageGraph[T]) Compile() (*Runnable[T], error) {
 	if g.entryPoint == "" {
 		return nil, ErrEntryPointNotSet
 	}
 
-	return &Runnable{
+	return &Runnable[T]{
 		graph: g,
 	}, nil
 }
 
 // Invoke executes the compiled message graph with the given input messages.
-// It returns the resulting messages and an error if any occurs during the execution.
+// It returns the resulting state and an error if any occurs during the execution.
 // Invoke executes the compiled message graph with the given input messages.
-// It returns the resulting messages and an error if any occurs during the execution.
-func (r *Runnable) Invoke(ctx context.Context, messages []llms.MessageContent) ([]llms.MessageContent, error) {
-	state := messages
+// It returns the resulting state and an error if any occurs during the execution.
+func (r *Runnable[T]) Invoke(ctx context.Context, state T) (T, error) {
 	currentNode := r.graph.entryPoint
 
 	for {
@@ -119,13 +115,13 @@ func (r *Runnable) Invoke(ctx context.Context, messages []llms.MessageContent) (
 
 		node, ok := r.graph.nodes[currentNode]
 		if !ok {
-			return nil, fmt.Errorf("%w: %s", ErrNodeNotFound, currentNode)
+			return state, fmt.Errorf("%w: %s", ErrNodeNotFound, currentNode)
 		}
 
 		var err error
 		state, err = node.Function(ctx, state)
 		if err != nil {
-			return nil, fmt.Errorf("error in node %s: %w", currentNode, err)
+			return state, fmt.Errorf("error in node %s: %w", currentNode, err)
 		}
 
 		foundNext := false
@@ -138,7 +134,7 @@ func (r *Runnable) Invoke(ctx context.Context, messages []llms.MessageContent) (
 		}
 
 		if !foundNext {
-			return nil, fmt.Errorf("%w: %s", ErrNoOutgoingEdge, currentNode)
+			return state, fmt.Errorf("%w: %s", ErrNoOutgoingEdge, currentNode)
 		}
 	}
 
