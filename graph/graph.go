@@ -54,9 +54,7 @@ func NewMessageGraph[T any](entryPoint string) *MessageGraph[T] {
 		entryPoint: entryPoint,
 	}
 
-	g.AddNode(END, func(ctx context.Context, state T) (T, error) {
-		return state, nil
-	})
+	g.AddNode(END, nil)
 	return g
 }
 
