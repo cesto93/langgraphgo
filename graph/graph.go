@@ -41,7 +41,7 @@ type MessageGraph[T any] struct {
 	nodes map[string]Node[T]
 
 	// edges is a slice of Edge objects representing the connections between nodes.
-	edges []Edge
+	edges map[string]Edge
 
 	// entryPoint is the name of the entry point node in the graph.
 	entryPoint string
@@ -50,8 +50,9 @@ type MessageGraph[T any] struct {
 // NewMessageGraph creates a new instance of MessageGraph.
 func NewMessageGraph[T any](entryPoint string) *MessageGraph[T] {
 	g := &MessageGraph[T]{
-		nodes: make(map[string]Node[T]),
+		nodes:      make(map[string]Node[T]),
 		entryPoint: entryPoint,
+		edges:      make(map[string]Edge),
 	}
 
 	g.AddNode(END, nil)
@@ -68,10 +69,10 @@ func (g *MessageGraph[T]) AddNode(name string, fn func(ctx context.Context, stat
 
 // AddEdge adds a new edge to the message graph between the "from" and "to" nodes.
 func (g *MessageGraph[T]) AddEdge(from, to string) {
-	g.edges = append(g.edges, Edge{
+	g.edges[from] = Edge{
 		From: from,
 		To:   to,
-	})
+	}
 }
 
 // Runnable represents a compiled message graph that can be invoked.
@@ -111,16 +112,10 @@ func (r *Runnable[T]) Invoke(ctx context.Context, state T) (T, error) {
 			return state, fmt.Errorf("error in node %s: %w", currentNode, err)
 		}
 
-		foundNext := false
-		for _, edge := range r.graph.edges {
-			if edge.From == currentNode {
-				currentNode = edge.To
-				foundNext = true
-				break
-			}
-		}
-
-		if !foundNext {
+		edge, foundNext := r.graph.edges[currentNode]
+		if foundNext {
+			currentNode = edge.To
+		} else {
 			return state, fmt.Errorf("%w: %s", ErrNoOutgoingEdge, currentNode)
 		}
 	}
