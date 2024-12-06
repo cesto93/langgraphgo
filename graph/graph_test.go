@@ -6,30 +6,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/openai"
-	"github.com/tmc/langchaingo/schema"
 	"github.com/cesto93/langgraphgo/graph"
+	"github.com/stretchr/testify/assert"
 )
 
-func ExampleMessageGraph() {
-	model, err := openai.New()
-	if err != nil {
-		panic(err)
-	}
+func TestExampleMessageGraph(t *testing.T) {
+	g := graph.NewMessageGraph[[]string]()
 
-	g := graph.NewMessageGraph[[]llms.MessageContent]()
-
-	g.AddNode("oracle", func(ctx context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
-		r, err := model.GenerateContent(ctx, state, llms.WithTemperature(0.0))
-		if err != nil {
-			return nil, err
-		}
-		return append(state,
-			llms.TextParts(schema.ChatMessageTypeAI, r.Choices[0].Content),
-		), nil
+	g.AddNode("oracle", func(ctx context.Context, state []string) ([]string, error) {
+		return append(state, "1 + 1 equals 2."), nil
 	})
-	g.AddNode(graph.END, func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
+	g.AddNode(graph.END, func(_ context.Context, state []string) ([]string, error) {
 		return state, nil
 	})
 
@@ -43,56 +30,47 @@ func ExampleMessageGraph() {
 
 	ctx := context.Background()
 	// Let's run it!
-	res, err := runnable.Invoke(ctx, []llms.MessageContent{
-		llms.TextParts(schema.ChatMessageTypeHuman, "What is 1 + 1?"),
-	})
+	res, err := runnable.Invoke(ctx, []string{"What is 1 + 1?"})
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(res)
-
-	// Output:
-	// [{human [{What is 1 + 1?}]} {ai [{1 + 1 equals 2.}]}]
+	assert.Equal(t, res, []string{"What is 1 + 1?", "1 + 1 equals 2."})
 }
 
 func TestMessageGraph(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		name           string
-		buildGraph     func() *graph.MessageGraph[[]llms.MessageContent]
-		inputMessages  []llms.MessageContent
-		expectedOutput []llms.MessageContent
+		buildGraph     func() *graph.MessageGraph[[]string]
+		inputMessages  []string
+		expectedOutput []string
 		expectedError  error
 	}{
 		{
 			name: "Simple graph",
-			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
-				g := graph.NewMessageGraph[[]llms.MessageContent]()
-				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
-					return append(state, llms.TextParts(schema.ChatMessageTypeAI, "Node 1")), nil
+			buildGraph: func() *graph.MessageGraph[[]string] {
+				g := graph.NewMessageGraph[[]string]()
+				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
+					return append(state, "Node 1"), nil
 				})
-				g.AddNode("node2", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
-					return append(state, llms.TextParts(schema.ChatMessageTypeAI, "Node 2")), nil
+				g.AddNode("node2", func(_ context.Context, state []string) ([]string, error) {
+					return append(state, "Node 2"), nil
 				})
 				g.AddEdge("node1", "node2")
 				g.AddEdge("node2", graph.END)
 				g.SetEntryPoint("node1")
 				return g
 			},
-			inputMessages: []llms.MessageContent{llms.TextParts(schema.ChatMessageTypeHuman, "Input")},
-			expectedOutput: []llms.MessageContent{
-				llms.TextParts(schema.ChatMessageTypeHuman, "Input"),
-				llms.TextParts(schema.ChatMessageTypeAI, "Node 1"),
-				llms.TextParts(schema.ChatMessageTypeAI, "Node 2"),
-			},
-			expectedError: nil,
+			inputMessages:  []string{"Input"},
+			expectedOutput: []string{"Input", "Node 1", "Node 2"},
+			expectedError:  nil,
 		},
 		{
 			name: "Entry point not set",
-			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
-				g := graph.NewMessageGraph[[]llms.MessageContent]()
-				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
+			buildGraph: func() *graph.MessageGraph[[]string] {
+				g := graph.NewMessageGraph[[]string]()
+				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
 					return state, nil
 				})
 				return g
@@ -101,9 +79,9 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "Node not found",
-			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
-				g := graph.NewMessageGraph[[]llms.MessageContent]()
-				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
+			buildGraph: func() *graph.MessageGraph[[]string] {
+				g := graph.NewMessageGraph[[]string]()
+				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
 					return state, nil
 				})
 				g.AddEdge("node1", "node2")
@@ -114,9 +92,9 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "No outgoing edge",
-			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
-				g := graph.NewMessageGraph[[]llms.MessageContent]()
-				g.AddNode("node1", func(_ context.Context, state []llms.MessageContent) ([]llms.MessageContent, error) {
+			buildGraph: func() *graph.MessageGraph[[]string] {
+				g := graph.NewMessageGraph[[]string]()
+				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
 					return state, nil
 				})
 				g.SetEntryPoint("node1")
@@ -126,9 +104,9 @@ func TestMessageGraph(t *testing.T) {
 		},
 		{
 			name: "Error in node function",
-			buildGraph: func() *graph.MessageGraph[[]llms.MessageContent] {
-				g := graph.NewMessageGraph[[]llms.MessageContent]()
-				g.AddNode("node1", func(_ context.Context, _ []llms.MessageContent) ([]llms.MessageContent, error) {
+			buildGraph: func() *graph.MessageGraph[[]string] {
+				g := graph.NewMessageGraph[[]string]()
+				g.AddNode("node1", func(_ context.Context, _ []string) ([]string, error) {
 					return nil, errors.New("node error")
 				})
 				g.AddEdge("node1", graph.END)
@@ -168,8 +146,8 @@ func TestMessageGraph(t *testing.T) {
 			}
 
 			for i, msg := range output {
-				got := fmt.Sprint(msg)
-				expected := fmt.Sprint(tc.expectedOutput[i])
+				got := msg
+				expected := tc.expectedOutput[i]
 				if got != expected {
 					t.Errorf("expected output[%d] content %q, but got %q", i, expected, got)
 				}
