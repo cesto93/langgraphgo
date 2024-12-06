@@ -10,9 +10,6 @@ import (
 const END = "END"
 
 var (
-	// ErrEntryPointNotSet is returned when the entry point of the graph is not set.
-	ErrEntryPointNotSet = errors.New("entry point not set")
-
 	// ErrNodeNotFound is returned when a node is not found in the graph.
 	ErrNodeNotFound = errors.New("node not found")
 
@@ -51,9 +48,10 @@ type MessageGraph[T any] struct {
 }
 
 // NewMessageGraph creates a new instance of MessageGraph.
-func NewMessageGraph[T any]() *MessageGraph[T] {
+func NewMessageGraph[T any](entryPoint string) *MessageGraph[T] {
 	g := &MessageGraph[T]{
 		nodes: make(map[string]Node[T]),
+		entryPoint: entryPoint,
 	}
 
 	g.AddNode(END, func(ctx context.Context, state T) (T, error) {
@@ -78,11 +76,6 @@ func (g *MessageGraph[T]) AddEdge(from, to string) {
 	})
 }
 
-// SetEntryPoint sets the entry point node name for the message graph.
-func (g *MessageGraph[T]) SetEntryPoint(name string) {
-	g.entryPoint = name
-}
-
 // Runnable represents a compiled message graph that can be invoked.
 type Runnable[T any] struct {
 	// graph is the underlying MessageGraph object.
@@ -92,10 +85,6 @@ type Runnable[T any] struct {
 // Compile compiles the message graph and returns a Runnable instance.
 // It returns an error if the entry point is not set.
 func (g *MessageGraph[T]) Compile() (*Runnable[T], error) {
-	if g.entryPoint == "" {
-		return nil, ErrEntryPointNotSet
-	}
-
 	return &Runnable[T]{
 		graph: g,
 	}, nil

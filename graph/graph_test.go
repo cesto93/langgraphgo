@@ -11,7 +11,7 @@ import (
 )
 
 func TestExampleMessageGraph(t *testing.T) {
-	g := graph.NewMessageGraph[[]string]()
+	g := graph.NewMessageGraph[[]string]("oracle")
 
 	g.AddNode("oracle", func(ctx context.Context, state []string) ([]string, error) {
 		return append(state, "1 + 1 equals 2."), nil
@@ -21,7 +21,6 @@ func TestExampleMessageGraph(t *testing.T) {
 	})
 
 	g.AddEdge("oracle", graph.END)
-	g.SetEntryPoint("oracle")
 
 	runnable, err := g.Compile()
 	if err != nil {
@@ -50,7 +49,7 @@ func TestMessageGraph(t *testing.T) {
 		{
 			name: "Simple graph",
 			buildGraph: func() *graph.MessageGraph[[]string] {
-				g := graph.NewMessageGraph[[]string]()
+				g := graph.NewMessageGraph[[]string]("node1")
 				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
 					return append(state, "Node 1"), nil
 				})
@@ -59,7 +58,6 @@ func TestMessageGraph(t *testing.T) {
 				})
 				g.AddEdge("node1", "node2")
 				g.AddEdge("node2", graph.END)
-				g.SetEntryPoint("node1")
 				return g
 			},
 			inputMessages:  []string{"Input"},
@@ -67,25 +65,13 @@ func TestMessageGraph(t *testing.T) {
 			expectedError:  nil,
 		},
 		{
-			name: "Entry point not set",
-			buildGraph: func() *graph.MessageGraph[[]string] {
-				g := graph.NewMessageGraph[[]string]()
-				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
-					return state, nil
-				})
-				return g
-			},
-			expectedError: graph.ErrEntryPointNotSet,
-		},
-		{
 			name: "Node not found",
 			buildGraph: func() *graph.MessageGraph[[]string] {
-				g := graph.NewMessageGraph[[]string]()
+				g := graph.NewMessageGraph[[]string]("node1")
 				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
 					return state, nil
 				})
 				g.AddEdge("node1", "node2")
-				g.SetEntryPoint("node1")
 				return g
 			},
 			expectedError: fmt.Errorf("%w: node2", graph.ErrNodeNotFound),
@@ -93,11 +79,10 @@ func TestMessageGraph(t *testing.T) {
 		{
 			name: "No outgoing edge",
 			buildGraph: func() *graph.MessageGraph[[]string] {
-				g := graph.NewMessageGraph[[]string]()
+				g := graph.NewMessageGraph[[]string]("node1")
 				g.AddNode("node1", func(_ context.Context, state []string) ([]string, error) {
 					return state, nil
 				})
-				g.SetEntryPoint("node1")
 				return g
 			},
 			expectedError: fmt.Errorf("%w: node1", graph.ErrNoOutgoingEdge),
@@ -105,12 +90,11 @@ func TestMessageGraph(t *testing.T) {
 		{
 			name: "Error in node function",
 			buildGraph: func() *graph.MessageGraph[[]string] {
-				g := graph.NewMessageGraph[[]string]()
+				g := graph.NewMessageGraph[[]string]("node1")
 				g.AddNode("node1", func(_ context.Context, _ []string) ([]string, error) {
 					return nil, errors.New("node error")
 				})
 				g.AddEdge("node1", graph.END)
-				g.SetEntryPoint("node1")
 				return g
 			},
 			expectedError: errors.New("error in node node1: node error"),
