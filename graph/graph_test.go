@@ -34,7 +34,7 @@ func TestExampleMessageGraph(t *testing.T) {
 		panic(err)
 	}
 
-	assert.Equal(t, res, []string{"What is 1 + 1?", "1 + 1 equals 2."})
+	assert.Equal(t, []string{"What is 1 + 1?", "1 + 1 equals 2."}, res)
 }
 
 func TestMessageGraph(t *testing.T) {
